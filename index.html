@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Manajemen Produk</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <style>
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+        img { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; }
+        .popup-image, #popupForm, #popupStock { display: none; position: fixed; background: white; padding: 20px; border: 1px solid #ccc; }
+        .popup-image { top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
+        .popup-image img { max-width: 80%; max-height: 80%; }
+        .popup-image span { position: absolute; top: 20px; right: 30px; font-size: 30px; color: white; cursor: pointer; }
+        #popupForm { top: 20%; left: 50%; transform: translate(-50%, -20%); }
+        #popupStock { top: 30%; left: 50%; transform: translate(-50%, -30%); }
+        #popupStock input { width: 60px; }
+        #noteSection { margin-top: 50px; }
+    </style>
+</head>
+<body>
+
+<h2>Manajemen Produk</h2>
+
+<input type="text" id="searchProduct" placeholder="Cari nama produk..." maxlength="30">
+<button id="openPopup">Tambah Produk</button>
+
+<div id="result"></div>
+
+<!-- Popup Tambah Produk -->
+<div id="popupForm">
+    <input type="text" id="productName" placeholder="Nama Produk" maxlength="30">
+    <input type="date" id="productExpiry">
+    <input type="number" id="productStock" placeholder="Jumlah Stok" min="1">
+    <input type="file" id="productImage" accept="image/*">
+    <button id="addProduct">Tambah</button>
+</div>
+
+<!-- Popup Zoom Gambar -->
+<div class="popup-image" id="popupImage">
+    <span id="closePopup">&times;</span>
+    <img id="popupImgSrc">
+</div>
+
+<!-- Popup Update Stok -->
+<div id="popupStock">
+    <h3>Update Stok</h3>
+    <input type="number" id="stockInput" placeholder="Jumlah" min="1">
+    <button id="addStock">+</button>
+    <button id="subtractStock">-</button>
+    <br><br>
+    <button id="closeStockPopup">Batal</button>
+</div>
+
+<!-- Section Catatan Produk -->
+<div id="noteSection">
+    <h2>Catatan Produk</h2>
+    <input type="text" id="noteProductName" placeholder="Nama Produk" maxlength="30">
+    <input type="number" id="noteProductQty" placeholder="Jumlah Produk" min="1">
+    <button id="addNoteProduct">Tambah Catatan</button>
+
+    <div id="noteResult"></div>
+</div>
+
+<script>
+$(document).ready(function(){
+    let products = JSON.parse(localStorage.getItem('products')) || [];
+    let productNotes = JSON.parse(localStorage.getItem('productNotes')) || [];
+    let noteCheckboxes = JSON.parse(localStorage.getItem('noteCheckboxes')) || {};
+    let currentProductIndex = null;
+
+    function saveProducts() {
+        localStorage.setItem('products', JSON.stringify(products));
+    }
+
+    function saveProductNotes() {
+        localStorage.setItem('productNotes', JSON.stringify(productNotes));
+    }
+
+    function saveNoteCheckboxes() {
+        localStorage.setItem('noteCheckboxes', JSON.stringify(noteCheckboxes));
+    }
+
+    function displayTables(search = '') {
+        let filtered = [];
+
+        if (search.trim() !== '') {
+            filtered = products.filter(p => {
+                let searchLower = search.toLowerCase();
+                let productFirstWord = p.name.toLowerCase().split(' ')[0];
+                return productFirstWord === searchLower;
+            });
+
+            if (filtered.length === 0) {
+                $('#result').html('<h3>tidak ditemukan...</h3>');
+                return;
+            }
+        } else {
+            filtered = [...products];
+        }
+
+        filtered.sort((a, b) => a.name.localeCompare(b.name));
+
+        let table1 = '<table><thead><tr><th>Nomor</th><th>Nama Produk</th><th>Kadaluarsa</th><th>Stok</th><th>Foto</th><th>Aksi</th></tr></thead><tbody>';
+        filtered.forEach((p, i) => {
+            table1 += `<tr>
+                <td>${i+1}</td>
+                <td class="productName" data-index="${products.indexOf(p)}" style="cursor:pointer;color:blue;">${p.name}</td>
+                <td>${p.expiry}</td>
+                <td>${p.stock}</td>
+                <td><img src="${p.image}" class="thumb" data-index="${products.indexOf(p)}"></td>
+                <td><button class="deleteBtn" data-index="${products.indexOf(p)}">Hapus</button></td>
+            </tr>`;
+        });
+        table1 += '</tbody></table>';
+
+        let grouped = {};
+        filtered.forEach(p => {
+            let key = p.name.split(' ')[0].toLowerCase();
+            grouped[key] = (grouped[key] || {name: p.name.split(' ')[0], stock: 0});
+            grouped[key].stock += parseInt(p.stock);
+        });
+
+        let table2 = '<table><thead><tr><th>Nomor</th><th>Nama Produk</th><th>Stok Produk Tersimpan</th></tr></thead><tbody>';
+        Object.values(grouped).forEach((g, i) => {
+            table2 += `<tr>
+                <td>${i+1}</td>
+                <td>${g.name}</td>
+                <td>${g.stock}</td>
+            </tr>`;
+        });
+        table2 += '</tbody></table>';
+
+        $('#result').html(table1 + '<br>' + table2);
+    }
+
+    function displayNotes() {
+        let table = '<table><thead><tr><th>Nomor</th><th>Nama Produk</th><th>Jumlah Produk</th><th>Checklist</th><th>Aksi</th></tr></thead><tbody>';
+        productNotes.forEach((n, i) => {
+            let checked = noteCheckboxes[i] ? 'checked' : '';
+            table += `<tr>
+                <td>${i+1}</td>
+                <td>${n.name}</td>
+                <td>${n.qty}</td>
+                <td><input type="checkbox" class="noteCheckbox" data-index="${i}" ${checked}></td>
+                <td><button class="deleteNoteBtn" data-index="${i}">Hapus</button></td>
+            </tr>`;
+        });
+        table += '</tbody></table>';
+        $('#noteResult').html(table);
+    }
+
+    $('#openPopup').click(function(){
+        $('#popupForm').toggle();
+    });
+
+    $('#addProduct').click(function(){
+        const name = $('#productName').val().trim();
+        const expiry = $('#productExpiry').val();
+        const stock = $('#productStock').val();
+        const file = $('#productImage')[0].files[0];
+
+        if (!name || !expiry || !stock || !file) {
+            alert('Isi semua data!');
+            return;
+        }
+
+        let duplicate = products.some(p => p.name.toLowerCase() === name.toLowerCase() && p.expiry === expiry);
+        if (duplicate) {
+            alert('Produk dengan nama dan tanggal kadaluarsa sama sudah ada!');
+            return;
+        }
+
+        let reader = new FileReader();
+        reader.onload = function(e){
+            products.push({
+                name: name,
+                expiry: expiry,
+                stock: parseInt(stock),
+                image: e.target.result
+            });
+            saveProducts();
+            displayTables();
+            $('#popupForm').hide();
+            $('#productName').val('');
+            $('#productExpiry').val('');
+            $('#productStock').val('');
+            $('#productImage').val('');
+        }
+        reader.readAsDataURL(file);
+    });
+
+    $('#searchProduct').keypress(function(e){
+        if (e.which == 13) {
+            let search = $(this).val();
+            displayTables(search);
+        }
+    });
+
+    $(document).on('click', '.deleteBtn', function(){
+        let index = $(this).data('index');
+        products.splice(index,1);
+        saveProducts();
+        displayTables();
+    });
+
+    $(document).on('click', '.thumb', function(){
+        let index = $(this).data('index');
+        $('#popupImgSrc').attr('src', products[index].image);
+        $('#popupImage').fadeIn();
+    });
+
+    $('#closePopup').click(function(){
+        $('#popupImage').fadeOut();
+    });
+
+    $(document).on('click', '.productName', function(){
+        currentProductIndex = $(this).data('index');
+        $('#stockInput').val('');
+        $('#popupStock').fadeIn();
+    });
+
+    $('#addStock').click(function(){
+        let amount = parseInt($('#stockInput').val());
+        if (!isNaN(amount) && currentProductIndex !== null) {
+            products[currentProductIndex].stock += amount;
+            saveProducts();
+            displayTables();
+            $('#popupStock').hide();
+        }
+    });
+
+    $('#subtractStock').click(function(){
+        let amount = parseInt($('#stockInput').val());
+        if (!isNaN(amount) && currentProductIndex !== null) {
+            products[currentProductIndex].stock -= amount;
+            if (products[currentProductIndex].stock < 0) products[currentProductIndex].stock = 0;
+            saveProducts();
+            displayTables();
+            $('#popupStock').hide();
+        }
+    });
+
+    $('#closeStockPopup').click(function(){
+        $('#popupStock').hide();
+    });
+
+    $('#addNoteProduct').click(function(){
+        const name = $('#noteProductName').val().trim();
+        const qty = parseInt($('#noteProductQty').val());
+
+        if (!name || isNaN(qty) || qty < 1) {
+            alert('Isi nama produk dan jumlah dengan benar!');
+            return;
+        }
+
+        productNotes.push({ name: name, qty: qty });
+        saveProductNotes();
+        displayNotes();
+        $('#noteProductName').val('');
+        $('#noteProductQty').val('');
+    });
+
+    $(document).on('click', '.deleteNoteBtn', function(){
+        let index = $(this).data('index');
+        productNotes.splice(index,1);
+        delete noteCheckboxes[index];
+        // Rebuild checkbox indexes
+        noteCheckboxes = Object.fromEntries(Object.entries(noteCheckboxes)
+            .sort(([a],[b])=>a-b)
+            .map(([_,v],i)=>[i,v])
+        );
+        saveProductNotes();
+        saveNoteCheckboxes();
+        displayNotes();
+    });
+
+    $(document).on('change', '.noteCheckbox', function(){
+        let index = $(this).data('index');
+        noteCheckboxes[index] = $(this).is(':checked');
+        saveNoteCheckboxes();
+    });
+
+    displayTables();
+    displayNotes();
+});
+</script>
+
+</body>
+</html>
