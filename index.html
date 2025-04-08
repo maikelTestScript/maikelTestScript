@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- 
+Author :  MAIKEL SINURAT
+Versi  : v2.0
+-->
 <html lang="id">
 <head>
     <meta charset="UTF-8">
@@ -121,7 +125,7 @@ $(document).ready(function(){
             grouped[key].stock += parseInt(p.stock);
         });
 
-        let table2 = '<table><thead><tr><th>Nomor</th><th>Nama Produk</th><th>Stok Produk Tersimpan</th></tr></thead><tbody>';
+        let table2 = '<table><thead><tr><th>Nomor</th><th>Nama Produk</th><th>Stok Produk</th></tr></thead><tbody>';
         Object.values(grouped).forEach((g, i) => {
             table2 += `<tr>
                 <td>${i+1}</td>
